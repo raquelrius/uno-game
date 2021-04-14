@@ -18,12 +18,20 @@ const typeCard = {
     14: 'reverse',
 }
 
-function shuffle(a) {
-    for (let i = a.length - 1; i > 0; i--) {
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
+        [array[i], array[j]] = [array[j], array[i]];
     }
-    return a;
+    return array;
+}
+
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min)) + min;
+}
+
+function mod(n, m) {
+    return ((n % m) + m) % m;
 }
 
 const createAllCards = () => {
@@ -50,15 +58,21 @@ const createAllCards = () => {
     return cards;
 }
 
+export const canPlayCard = (firstCard, secondCard) => (
+    firstCard.color === secondCard.color ||
+        firstCard.number === secondCard.number ||
+        (firstCard.behaviour.includes('wild') && secondCard.behaviour.includes('wild')) ||
+        secondCard.behaviour.includes('wild')
+);
+
 class Game {
     constructor() {
         this.deck = shuffle(createAllCards());
         this.discardPile = [];
         this.players = {};
-    }
-
-    addPlayer(name) {
-        this.players[name] = new Player();
+        this.turn = 0;
+        this.activeCard = null;
+        this.turnDirection = 1;
     }
 
     addPlayers(namesList) {
@@ -73,7 +87,11 @@ class Game {
                 hand.addCard(drawnCard);
             }
             this.players[player].setHand(hand);
-        })
+        });
+        const onTableCard = this.deck.pop();
+        this.discardPile.push(onTableCard);
+        this.activeCard = onTableCard;
+        if (onTableCard.behaviour.includes('wild')) this.activeCard.color = colors[getRandomInt(0, colors.length)]; //if 1st card is a wild card, random color
     }
 
     playerDrawCards(player, amountCards) {
@@ -81,7 +99,7 @@ class Game {
         for (let i = 0; i < amountCards; i++) {
             if (this.deck.length !== 0) {
                 const drawnCard = this.deck.pop();
-                this.players[player]?.hand.addCard(drawnCard);
+                player.hand.addCard(drawnCard);
             } else {
                 this.deck = shuffle(this.deck.concat(this.discardPile)); // if there are no more cards, we add the discard pile
             }
@@ -89,9 +107,25 @@ class Game {
         return totalCards;
     }
 
-    playerPLayCard(player, card) {
-
+    skipTurn() {
+        this.turn = mod((this.turn + this.turnDirection), Object.keys(this.players).length);
     }
+
+    playerPlayCard(player, card) {
+        this.discardPile.push(card);
+        this.activeCard = card;
+        if (card.behaviour.includes('wild')) this.activeCard.color = colors[getRandomInt(0, colors.length)]; // simulate choosing color for wild card
+        if (card.behaviour === 'skip') this.skipTurn();
+
+        const direction = card?.behaviour === 'reverse' ? -1 * this.turnDirection : this.turnDirection;
+        this.turn = mod((this.turn + direction), Object.keys(this.players).length); // the % for negatives values gives negative in js
+        if (card.behaviour === 'reverse' ) {
+            this.turnDirection = -1 * this.turnDirection;
+        }
+
+        player.hand.deleteCard(card);
+    }
+
 }
 
 class Card {
@@ -109,6 +143,10 @@ class Hand {
 
     addCard(card) {
         this.cards.push(card);
+    }
+
+    deleteCard(card) {
+        this.cards.splice(this.cards.indexOf(card), 1);
     }
 }
 
